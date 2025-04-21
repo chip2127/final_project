@@ -44,14 +44,14 @@
                 ];
 
                 const codeQuery = loincCodes.map(c => `http://loinc.org|${c.code}`).join(',');
-                
-                client.request(`Observation?patient=${client.patient.id}&code=${codeQuery}`)
+
+                // 💡 Add leading slash to fix path issue
+                client.request(`/Observation?patient=${client.patient.id}&code=${codeQuery}`)
                     .then(function(observations) {
                         if (!observations.entry || observations.entry.length === 0) {
                             throw new Error("No cholesterol test results found for this patient");
                         }
 
-                        // Build a list of readable cholesterol results
                         const results = observations.entry.map(entry => {
                             const obs = entry.resource;
                             const code = obs.code.coding[0].code;
@@ -73,4 +73,5 @@
         </script>
     </body>
 </html>
+
 
