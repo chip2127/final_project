@@ -66,8 +66,11 @@
                         document.getElementById("cholesterol").innerText = results.join("\n");
                     })
                     .catch(function(error) {
-                        document.getElementById("cholesterol").innerText = error.stack || error.message;
+                        console.error("Error fetching cholesterol data:", error);
+                        document.getElementById("cholesterol").innerText = 
+                            "Unable to retrieve cholesterol data.\n\n" + (error.message || JSON.stringify(error));
                     });
+
 
             }).catch(console.error);
         </script>
