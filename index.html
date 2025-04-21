@@ -45,7 +45,7 @@
             function renderChart() {
                 const chartDiv = document.getElementById("chart");
                 chartDiv.innerHTML = ""; // clear out "Loading..." message
-                
+
                 const hasCholesterol = cholesterolResults.length > 0;
                 const hasActivity = activityResult !== null;
                 
@@ -65,7 +65,8 @@
                         y: activityResult.value
                     });
                 }
-        
+
+                // Create the chart only when there is data
                 Highcharts.chart('chart', {
                     chart: { type: 'column' },
                     title: { text: 'Cholesterol & Activity Overview' },
@@ -166,6 +167,7 @@
     </script>
 </body>
 </html>
+
 
 
 
