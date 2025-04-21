@@ -1,50 +1,76 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
     <head>
-        <title>SMART on FHIR Cholesterol Viewer</title>
-        <script src="https://code.highcharts.com/highcharts.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/fhirclient/build/fhir-client.min.js"></script>
+        <meta charset="UTF-8" />
+        <title>SMART on FHIR Cholesterol App</title>
+        <script src="https://cdn.jsdelivr.net/npm/fhirclient/build/fhir-client.js"></script>
+        <style>
+            #patient, #cholesterol {
+                font-family: Monaco, monospace;
+                white-space: pre;
+                font-size: 13px;
+                height: 30vh;
+                overflow: scroll;
+                border: 1px solid #CCC;
+            }
+        </style>
     </head>
     <body>
         <h4>Current Patient</h4>
         <div id="patient">Loading...</div>
         <br/>
         <h4>Cholesterol Test Results</h4>
-        <div id="chart">Loading...</div>
+        <div id="cholesterol">Loading...</div>
 
         <script type="text/javascript">
             FHIR.oauth2.ready().then(function(client) {
 
-                // Render patient info
+                // Render the current patient (or any error)
                 client.patient.read().then(
                     function(pt) {
                         document.getElementById("patient").innerText = JSON.stringify(pt, null, 4);
+                    },
+                    function(error) {
+                        document.getElementById("patient").innerText = error.stack;
+                    }
+                );
 
-                        const patientId = client.patient.id;
-                        const loincCodes = [
-                            { code: "2093-3", label: "Total Cholesterol" },
-                            { code: "13457-7", label: "LDL Cholesterol" },
-                            { code: "2085-9", label: "HDL Cholesterol" },
-                            { code: "2571-8", label: "Triglycerides" }
-                        ];
+                // LOINC codes for cholesterol tests
+                const loincCodes = [
+                    { code: "2093-3", label: "Total Cholesterol" },
+                    { code: "13457-7", label: "LDL Cholesterol" },
+                    { code: "2085-9", label: "HDL Cholesterol" },
+                    { code: "2571-8", label: "Triglycerides" }
+                ];
 
-                        const query = loincCodes.map(c => `http://loinc.org|${c.code}`).join(',');
-                        client.request(`Observation?patient=${patientId}&code=${query}`)
-                            .then(observations => {
-                                if (!observations.entry || observations.entry.length === 0) {
-                                    document.getElementById("chart").innerText = "No cholesterol test results found.";
-                                    return;
-                                }
+                const codeQuery = loincCodes.map(c => `http://loinc.org|${c.code}`).join(',');
+                
+                client.request(`Observation?patient=${client.patient.id}&code=${codeQuery}`)
+                    .then(function(observations) {
+                        if (!observations.entry || observations.entry.length === 0) {
+                            throw new Error("No cholesterol test results found for this patient");
+                        }
 
-                                const results = [];
-                                observations.entry.forEach(entry => {
-                                    const obs = entry.resource;
-                                    if (obs.valueQuantity) {
-                                        const loincCode = obs.code.coding[0].code;
-                                        const match = loincCodes.find(l => l.code === loincCode);
-                                        if (match) {
-                                            results.push({
-                                                name: match.label,
-                                                value: obs.valueQuantity.value,
-                                                unit: obs.valueQuantity.unit
-                                            });
+                        // Build a list of readable cholesterol results
+                        const results = observations.entry.map(entry => {
+                            const obs = entry.resource;
+                            const code = obs.code.coding[0].code;
+                            const match = loincCodes.find(l => l.code === code);
+                            const label = match ? match.label : code;
+                            const value = obs.valueQuantity?.value;
+                            const unit = obs.valueQuantity?.unit;
+                            const date = obs.effectiveDateTime || "Unknown Date";
+                            return `${label}: ${value} ${unit} (${date})`;
+                        });
+
+                        document.getElementById("cholesterol").innerText = results.join("\n");
+                    })
+                    .catch(function(error) {
+                        document.getElementById("cholesterol").innerText = error.stack || error.message;
+                    });
+
+            }).catch(console.error);
+        </script>
+    </body>
+</html>
+
