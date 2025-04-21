@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <title>SMART on FHIR Cholesterol & Activity App</title>
     <script src="https://cdn.jsdelivr.net/npm/fhirclient/build/fhir-client.js"></script>
+    <script src="https://code.highcharts.com/highcharts.js"></script>
     <style>
         #patient, #cholesterol, #activity {
             font-family: Monaco, monospace;
@@ -12,6 +13,10 @@
             height: 30vh;
             overflow: scroll;
             border: 1px solid #CCC;
+        }
+        #chart {
+            height: 400px;
+            margin-top: 20px;
         }
     </style>
 </head>
@@ -24,9 +29,45 @@
     <br/>
     <h4>Moderate Activity (Minutes)</h4>
     <div id="activity">Loading...</div>
+    <br/>
+    <h4>Cholesterol & Activity Chart</h4>
+    <div id="chart">Loading...</div>
 
     <script type="text/javascript">
         FHIR.oauth2.ready().then(function(client) {
+
+            let cholesterolResults = [];
+            let activityResult = null;
+
+            function renderChart() {
+                if (!cholesterolResults.length || activityResult === null) return;
+
+                const chartData = cholesterolResults.map(res => ({
+                    name: res.label,
+                    y: res.value
+                }));
+
+                chartData.push({
+                    name: "Moderate Activity (min)",
+                    y: activityResult.value
+                });
+
+                Highcharts.chart('chart', {
+                    chart: { type: 'column' },
+                    title: { text: 'Cholesterol & Activity Overview' },
+                    xAxis: {
+                        type: 'category',
+                        title: { text: 'Measurement Type' }
+                    },
+                    yAxis: {
+                        title: { text: 'Value' }
+                    },
+                    series: [{
+                        name: 'Measurements',
+                        data: chartData
+                    }]
+                });
+            }
 
             // --- Patient Info ---
             client.patient.read().then(
@@ -51,7 +92,8 @@
             client.request(`/Observation?patient=${client.patient.id}&code=${cholesterolQuery}`)
                 .then(function(observations) {
                     if (!observations.entry || observations.entry.length === 0) {
-                        throw new Error("No cholesterol test results found for this patient");
+                        document.getElementById("cholesterol").innerText = "No cholesterol test results found for this patient.";
+                        return;
                     }
 
                     const results = observations.entry.map(entry => {
@@ -62,25 +104,29 @@
                         const value = obs.valueQuantity?.value;
                         const unit = obs.valueQuantity?.unit;
                         const date = obs.effectiveDateTime || "Unknown Date";
+                        if (value != null) {
+                            cholesterolResults.push({ label, value });
+                        }
                         return `${label}: ${value} ${unit} (${date})`;
                     });
 
                     document.getElementById("cholesterol").innerText = results.join("\n");
+                    renderChart();
                 })
                 .catch(function(error) {
                     console.error("Error fetching cholesterol data:", error);
-                    document.getElementById("cholesterol").innerText =
-                        "Unable to retrieve cholesterol data.\n\n" + (error.message || JSON.stringify(error));
+                    document.getElementById("cholesterol").innerText = "No cholesterol test results found for this patient.";
                 });
 
-            // --- Daily Activity: Only Moderate Activity Minutes (55411-3) ---
+            // --- Daily Activity Section ---
             const activityCode = "55411-3";
             const activityLabel = "Moderate Activity Minutes";
 
             client.request(`/Observation?patient=${client.patient.id}&code=http://loinc.org|${activityCode}`)
                 .then(function(observations) {
                     if (!observations.entry || observations.entry.length === 0) {
-                        throw new Error("No moderate activity data found for this patient");
+                        document.getElementById("activity").innerText = "No activity results found for this patient.";
+                        return;
                     }
 
                     const results = observations.entry.map(entry => {
@@ -88,21 +134,26 @@
                         const value = obs.valueQuantity?.value;
                         const unit = obs.valueQuantity?.unit;
                         const date = obs.effectiveDateTime || "Unknown Date";
+                        if (value != null && activityResult === null) {
+                            activityResult = { value };
+                        }
                         return `${activityLabel}: ${value} ${unit} (${date})`;
                     });
 
                     document.getElementById("activity").innerText = results.join("\n");
+                    renderChart();
                 })
                 .catch(function(error) {
                     console.error("Error fetching activity data:", error);
-                    document.getElementById("activity").innerText =
-                        "Unable to retrieve activity data.\n\n" + (error.message || JSON.stringify(error));
+                    document.getElementById("activity").innerText = "No activity results found for this patient.";
                 });
 
         }).catch(console.error);
     </script>
 </body>
 </html>
+
+
 
 
 
