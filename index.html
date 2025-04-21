@@ -24,12 +24,15 @@
     <h4>Current Patient</h4>
     <div id="patient">Loading...</div>
     <br/>
+    
     <h4>Cholesterol Test Results</h4>
     <div id="cholesterol">Loading...</div>
     <br/>
+    
     <h4>Moderate Activity (Minutes)</h4>
     <div id="activity">Loading...</div>
     <br/>
+    
     <h4>Cholesterol & Activity Chart</h4>
     <div id="chart">Loading...</div>
 
@@ -40,18 +43,29 @@
             let activityResult = null;
 
             function renderChart() {
-                if (!cholesterolResults.length || activityResult === null) return;
-
+                const chartDiv = document.getElementById("chart");
+                chartDiv.innerHTML = ""; // clear out "Loading..." message
+                
+                const hasCholesterol = cholesterolResults.length > 0;
+                const hasActivity = activityResult !== null;
+                
+                if (!hasCholesterol && !hasActivity) {
+                    // Leave chart area blank if no data
+                    return;
+                }
+                
                 const chartData = cholesterolResults.map(res => ({
                     name: res.label,
                     y: res.value
                 }));
-
-                chartData.push({
-                    name: "Moderate Activity (min)",
-                    y: activityResult.value
-                });
-
+            
+                if (hasActivity) {
+                    chartData.push({
+                        name: "Moderate Activity (min)",
+                        y: activityResult.value
+                    });
+                }
+        
                 Highcharts.chart('chart', {
                     chart: { type: 'column' },
                     title: { text: 'Cholesterol & Activity Overview' },
@@ -152,6 +166,7 @@
     </script>
 </body>
 </html>
+
 
 
 
