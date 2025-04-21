@@ -1,80 +1,108 @@
 <!DOCTYPE html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <title>SMART on FHIR Cholesterol App</title>
-        <script src="https://cdn.jsdelivr.net/npm/fhirclient/build/fhir-client.js"></script>
-        <style>
-            #patient, #cholesterol {
-                font-family: Monaco, monospace;
-                white-space: pre;
-                font-size: 13px;
-                height: 30vh;
-                overflow: scroll;
-                border: 1px solid #CCC;
-            }
-        </style>
-    </head>
-    <body>
-        <h4>Current Patient</h4>
-        <div id="patient">Loading...</div>
-        <br/>
-        <h4>Cholesterol Test Results</h4>
-        <div id="cholesterol">Loading...</div>
+<head>
+    <meta charset="UTF-8" />
+    <title>SMART on FHIR Cholesterol & Activity App</title>
+    <script src="https://cdn.jsdelivr.net/npm/fhirclient/build/fhir-client.js"></script>
+    <style>
+        #patient, #cholesterol, #activity {
+            font-family: Monaco, monospace;
+            white-space: pre;
+            font-size: 13px;
+            height: 30vh;
+            overflow: scroll;
+            border: 1px solid #CCC;
+        }
+    </style>
+</head>
+<body>
+    <h4>Current Patient</h4>
+    <div id="patient">Loading...</div>
+    <br/>
+    <h4>Cholesterol Test Results</h4>
+    <div id="cholesterol">Loading...</div>
+    <br/>
+    <h4>Moderate Activity (Minutes)</h4>
+    <div id="activity">Loading...</div>
 
-        <script type="text/javascript">
-            FHIR.oauth2.ready().then(function(client) {
+    <script type="text/javascript">
+        FHIR.oauth2.ready().then(function(client) {
 
-                // Render the current patient (or any error)
-                client.patient.read().then(
-                    function(pt) {
-                        document.getElementById("patient").innerText = JSON.stringify(pt, null, 4);
-                    },
-                    function(error) {
-                        document.getElementById("patient").innerText = error.stack;
+            // --- Patient Info ---
+            client.patient.read().then(
+                function(pt) {
+                    document.getElementById("patient").innerText = JSON.stringify(pt, null, 4);
+                },
+                function(error) {
+                    document.getElementById("patient").innerText = error.stack;
+                }
+            );
+
+            // --- Cholesterol Section ---
+            const cholesterolCodes = [
+                { code: "2093-3", label: "Total Cholesterol" },
+                { code: "13457-7", label: "LDL Cholesterol" },
+                { code: "2085-9", label: "HDL Cholesterol" },
+                { code: "2571-8", label: "Triglycerides" }
+            ];
+
+            const cholesterolQuery = cholesterolCodes.map(c => `http://loinc.org|${c.code}`).join(',');
+
+            client.request(`/Observation?patient=${client.patient.id}&code=${cholesterolQuery}`)
+                .then(function(observations) {
+                    if (!observations.entry || observations.entry.length === 0) {
+                        throw new Error("No cholesterol test results found for this patient");
                     }
-                );
 
-                // LOINC codes for cholesterol tests
-                const loincCodes = [
-                    { code: "2093-3", label: "Total Cholesterol" },
-                    { code: "13457-7", label: "LDL Cholesterol" },
-                    { code: "2085-9", label: "HDL Cholesterol" },
-                    { code: "2571-8", label: "Triglycerides" }
-                ];
-
-                const codeQuery = loincCodes.map(c => `http://loinc.org|${c.code}`).join(',');
-
-                // 💡 Add leading slash to fix path issue
-                client.request(`/Observation?patient=${client.patient.id}&code=${codeQuery}`)
-                    .then(function(observations) {
-                        if (!observations.entry || observations.entry.length === 0) {
-                            throw new Error("No cholesterol test results found for this patient");
-                        }
-
-                        const results = observations.entry.map(entry => {
-                            const obs = entry.resource;
-                            const code = obs.code.coding[0].code;
-                            const match = loincCodes.find(l => l.code === code);
-                            const label = match ? match.label : code;
-                            const value = obs.valueQuantity?.value;
-                            const unit = obs.valueQuantity?.unit;
-                            const date = obs.effectiveDateTime || "Unknown Date";
-                            return `${label}: ${value} ${unit} (${date})`;
-                        });
-
-                        document.getElementById("cholesterol").innerText = results.join("\n");
-                    })
-                    .catch(function(error) {
-                        console.error("Error fetching cholesterol data:", error);
-                        document.getElementById("cholesterol").innerText = 
-                            "Unable to retrieve cholesterol data.\n\n" + (error.message || JSON.stringify(error));
+                    const results = observations.entry.map(entry => {
+                        const obs = entry.resource;
+                        const code = obs.code.coding[0].code;
+                        const match = cholesterolCodes.find(l => l.code === code);
+                        const label = match ? match.label : code;
+                        const value = obs.valueQuantity?.value;
+                        const unit = obs.valueQuantity?.unit;
+                        const date = obs.effectiveDateTime || "Unknown Date";
+                        return `${label}: ${value} ${unit} (${date})`;
                     });
 
+                    document.getElementById("cholesterol").innerText = results.join("\n");
+                })
+                .catch(function(error) {
+                    console.error("Error fetching cholesterol data:", error);
+                    document.getElementById("cholesterol").innerText =
+                        "Unable to retrieve cholesterol data.\n\n" + (error.message || JSON.stringify(error));
+                });
 
-            }).catch(console.error);
-        </script>
-    </body>
+            // --- Daily Activity: Only Moderate Activity Minutes (55411-3) ---
+            const activityCode = "55411-3";
+            const activityLabel = "Moderate Activity Minutes";
+
+            client.request(`/Observation?patient=${client.patient.id}&code=http://loinc.org|${activityCode}`)
+                .then(function(observations) {
+                    if (!observations.entry || observations.entry.length === 0) {
+                        throw new Error("No moderate activity data found for this patient");
+                    }
+
+                    const results = observations.entry.map(entry => {
+                        const obs = entry.resource;
+                        const value = obs.valueQuantity?.value;
+                        const unit = obs.valueQuantity?.unit;
+                        const date = obs.effectiveDateTime || "Unknown Date";
+                        return `${activityLabel}: ${value} ${unit} (${date})`;
+                    });
+
+                    document.getElementById("activity").innerText = results.join("\n");
+                })
+                .catch(function(error) {
+                    console.error("Error fetching activity data:", error);
+                    document.getElementById("activity").innerText =
+                        "Unable to retrieve activity data.\n\n" + (error.message || JSON.stringify(error));
+                });
+
+        }).catch(console.error);
+    </script>
+</body>
 </html>
+
 
 
